@@ -320,12 +320,8 @@ public class DeviceAppsPlugin implements
         for (int intent = 0; intent < activities.size(); intent++) {
             launcherApps.startMainActivity(activities.get(intent).getComponentName(), userHandle, null, null);
         }
-        // Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(packageName);
-
-        // if (IntentUtils.isIntentOpenable(launchIntent, context)) {
-        //     context.startActivity(launchIntent);
-        //     return true;
-        // }
+       
+        
 
         return false;
     }
