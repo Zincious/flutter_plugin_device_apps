@@ -14,5 +14,7 @@ public class AppDataConstants {
     public static final String IS_ENABLED = "is_enabled";
     public static final String CATEGORY = "category";
     public static final String APP_ICON = "app_icon";
+    public static final String USER_SERIAL = "user_serial";
+
 
 }

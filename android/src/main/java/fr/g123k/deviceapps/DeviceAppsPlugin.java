@@ -5,6 +5,14 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+
+import android.content.pm.PackageManager.NameNotFoundException;
+import android.content.pm.ApplicationInfo;
+import android.os.UserHandle;
+import android.os.UserManager;
+import android.content.pm.LauncherApps;
+import android.content.pm.LauncherActivityInfo;
+
 import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
@@ -95,6 +103,22 @@ public class DeviceAppsPlugin implements
                     }
                 });
                 break;
+            case "getInstalledLauncherApps":
+                boolean systemLauncherApps = call.hasArgument("system_apps") && (Boolean) (call.argument("system_apps"));
+                boolean includeLauncherAppIcons = call.hasArgument("include_app_icons") && (Boolean) (call.argument("include_app_icons"));
+                boolean onlyLauncerAppsWithLaunchIntent = call.hasArgument("only_apps_with_launch_intent") && (Boolean) (call.argument("only_apps_with_launch_intent"));
+                fetchInstalledLauncherApps(systemLauncherApps, includeLauncherAppIcons, onlyLauncerAppsWithLaunchIntent, new InstalledAppsCallback() {
+                    @Override
+                    public void onInstalledAppsListAvailable(final List<Map<String, Object>> apps) {
+                        new Handler(Looper.getMainLooper()).post(new Runnable() {
+                            @Override
+                            public void run() {
+                                result.success(apps);
+                            }
+                        });
+                    }
+                });
+                break;
             case "getApp":
                 if (!call.hasArgument("package_name") || TextUtils.isEmpty(call.argument("package_name").toString())) {
                     result.error("ERROR", "Empty or null package name", null);
@@ -118,6 +142,15 @@ public class DeviceAppsPlugin implements
                 } else {
                     String packageName = call.argument("package_name").toString();
                     result.success(openApp(packageName));
+                }
+                break;
+            case "openLauncherApp":
+                if (!call.hasArgument("package_name") || TextUtils.isEmpty(call.argument("package_name").toString())) {
+                    result.error("ERROR", "Empty or null package name", null);
+                } else {
+                    String packageName = call.argument("package_name").toString();
+                    int userId = call.argument("user_id");
+                    result.success(openLauncherApp(userId, packageName));
                 }
                 break;
             case "openAppSettings":
@@ -156,14 +189,36 @@ public class DeviceAppsPlugin implements
         });
     }
 
+    private void fetchInstalledLauncherApps(final boolean includeSystemApps, final boolean includeAppIcons, final boolean onlyAppsWithLaunchIntent, final InstalledAppsCallback callback) {
+        asyncWork.run(new Runnable() {
+
+            @Override
+            public void run() {
+                List<Map<String, Object>> installedApps = getInstalledLauncherApps(includeSystemApps, includeAppIcons, onlyAppsWithLaunchIntent);
+
+                if (callback != null) {
+                    callback.onInstalledAppsListAvailable(installedApps);
+                }
+            }
+
+        });
+    }
+
     private List<Map<String, Object>> getInstalledApps(boolean includeSystemApps, boolean includeAppIcons, boolean onlyAppsWithLaunchIntent) {
         if (context == null) {
             Log.e(LOG_TAG, "Context is null");
             return new ArrayList<>(0);
         }
 
+        
+
         PackageManager packageManager = context.getPackageManager();
         List<PackageInfo> apps = packageManager.getInstalledPackages(0);
+        // List<PackageInfo> apps = null;
+
+      
+        
+
         List<Map<String, Object>> installedApps = new ArrayList<>(apps.size());
 
         for (PackageInfo packageInfo : apps) {
@@ -184,6 +239,55 @@ public class DeviceAppsPlugin implements
         return installedApps;
     }
 
+
+    private List<Map<String, Object>> getInstalledLauncherApps(boolean includeSystemApps, boolean includeAppIcons, boolean onlyAppsWithLaunchIntent) {
+        if (context == null) {
+            Log.e(LOG_TAG, "Context is null");
+            return new ArrayList<>(0);
+        }
+
+        
+
+        PackageManager packageManager = context.getPackageManager();
+        List<PackageInfo> apps = packageManager.getInstalledPackages(0);
+        // List<PackageInfo> apps = null;
+
+        LauncherApps launcherApps = (LauncherApps) context.getSystemService(Context.LAUNCHER_APPS_SERVICE);
+        List<UserHandle> profiles = launcherApps.getProfiles();
+        List<Map<String, Object>> installedApps = new ArrayList<>();
+
+
+
+        for (UserHandle userHandle : profiles) {
+            List<LauncherActivityInfo> launchApps = launcherApps.getActivityList(null, userHandle);
+            UserManager userManager = (UserManager) context.getSystemService(Context.USER_SERVICE);
+            Long serialUser = userManager.getSerialNumberForUser(userHandle);
+
+            for (LauncherActivityInfo info : launchApps) {
+                // apps.add(pack);
+           
+        
+
+
+        // if (!includeSystemApps && isSystemApp(packageInfo)) {
+        //         continue;
+        //     }
+        //     if (onlyAppsWithLaunchIntent && packageManager.getLaunchIntentForPackage(packageInfo.packageName) == null) {
+        //         continue;
+        //     }
+
+            Map<String, Object> map = getAppLauncherData(packageManager,
+                    info,
+                    info.getApplicationInfo(),
+                    includeAppIcons,
+                    serialUser);
+            installedApps.add(map);
+        }
+    }
+
+        return installedApps;
+    }
+
     private boolean openApp(@NonNull String packageName) {
         if (!isAppInstalled(packageName)) {
             Log.w(LOG_TAG, "Application with package name \"" + packageName + "\" is not installed on this device");
@@ -196,6 +300,32 @@ public class DeviceAppsPlugin implements
             context.startActivity(launchIntent);
             return true;
         }
+
+        return false;
+    }
+
+    private boolean openLauncherApp(@NonNull int userId, @NonNull String packageName) {
+        if (!isAppInstalled(packageName)) {
+            Log.w(LOG_TAG, "Application with package name \"" + packageName + "\" is not installed on this device");
+            return false;
+        }
+        LauncherApps launcherApps = (LauncherApps) context.getSystemService(Context.LAUNCHER_APPS_SERVICE);
+        UserManager userManager = (UserManager) context.getSystemService(Context.USER_SERVICE);
+        UserHandle userHandle = userManager.getUserForSerialNumber(userId);
+
+        List<LauncherActivityInfo> activities = launcherApps.getActivityList(packageName, userHandle);
+        Log.e(LOG_TAG, "test2: "+ userId +" " + userHandle);
+
+        
+        for (int intent = 0; intent < activities.size(); intent++) {
+            launcherApps.startMainActivity(activities.get(intent).getComponentName(), userHandle, null, null);
+        }
+        // Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(packageName);
+
+        // if (IntentUtils.isIntentOpenable(launchIntent, context)) {
+        //     context.startActivity(launchIntent);
+        //     return true;
+        // }
 
         return false;
     }
@@ -255,11 +385,23 @@ public class DeviceAppsPlugin implements
         map.put(AppDataConstants.PACKAGE_NAME, pInfo.packageName);
         map.put(AppDataConstants.VERSION_CODE, pInfo.versionCode);
         map.put(AppDataConstants.VERSION_NAME, pInfo.versionName);
+        Log.e(LOG_TAG, "--------------");
+        Log.e(LOG_TAG, "testpackage1: " + pInfo.packageName);
+        Log.e(LOG_TAG, "test1 : " + pInfo.packageName + " sharedusrlabel " +  pInfo.sharedUserLabel);
+        Log.e(LOG_TAG, "test1 : " + pInfo.packageName +" sharedusrid " +pInfo.sharedUserId);
+        Log.e(LOG_TAG, "test1 : " + pInfo.packageName +" apex  " +pInfo.isApex);
+        Log.e(LOG_TAG, "test1 : " + pInfo.packageName +"  install " +pInfo.installLocation);
+        Log.e(LOG_TAG, "test1 : " + pInfo.packageName +"  flags " + pInfo.installLocation);
+
+                                        
+        
         map.put(AppDataConstants.DATA_DIR, applicationInfo.dataDir);
         map.put(AppDataConstants.SYSTEM_APP, isSystemApp(pInfo));
         map.put(AppDataConstants.INSTALL_TIME, pInfo.firstInstallTime);
         map.put(AppDataConstants.UPDATE_TIME, pInfo.lastUpdateTime);
         map.put(AppDataConstants.IS_ENABLED, applicationInfo.enabled);
+    
+
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             map.put(AppDataConstants.CATEGORY, pInfo.applicationInfo.category);
@@ -273,9 +415,60 @@ public class DeviceAppsPlugin implements
             } catch (PackageManager.NameNotFoundException ignored) {
             }
         }
+        
 
         return map;
     }
+
+    private Map<String, Object> getAppLauncherData(PackageManager packageManager,
+    LauncherActivityInfo pInfo,
+    ApplicationInfo applicationInfo,
+    boolean includeAppIcon,
+    long serialUser) {
+
+    PackageInfo app_info = null;
+    Map<String, Object> map = new HashMap<>();
+    final String packageName = pInfo.getComponentName().getPackageName();
+
+    try {
+        app_info = packageManager.getPackageInfo(packageName,0);
+    } catch (NameNotFoundException e) {
+        Log.e("Hash", "Error: NameNotFoundException");
+        e.printStackTrace();
+
+    }
+    
+    map.put(AppDataConstants.APP_NAME, applicationInfo.loadLabel(packageManager).toString());
+    map.put(AppDataConstants.APK_FILE_PATH, applicationInfo.sourceDir);
+    map.put(AppDataConstants.PACKAGE_NAME, pInfo.getComponentName().getPackageName());
+    map.put(AppDataConstants.VERSION_CODE, app_info.versionCode);
+    map.put(AppDataConstants.VERSION_NAME, app_info.versionName);
+    map.put(AppDataConstants.DATA_DIR, applicationInfo.dataDir);
+    map.put(AppDataConstants.SYSTEM_APP, isSystemApp(app_info));
+    map.put(AppDataConstants.INSTALL_TIME, app_info.firstInstallTime);
+    map.put(AppDataConstants.UPDATE_TIME, app_info.lastUpdateTime);
+    map.put(AppDataConstants.IS_ENABLED, applicationInfo.enabled);
+    map.put(AppDataConstants.USER_SERIAL, serialUser);
+
+
+ 
+
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+map.put(AppDataConstants.CATEGORY, app_info.applicationInfo.category);
+}
+
+if (includeAppIcon) {
+try {
+Drawable icon = packageManager.getApplicationIcon(app_info.packageName);
+String encodedImage = encodeToBase64(getBitmapFromDrawable(icon), Bitmap.CompressFormat.PNG, 100);
+map.put(AppDataConstants.APP_ICON, encodedImage);
+} catch (PackageManager.NameNotFoundException ignored) {
+}
+}
+
+
+return map;
+}
 
     private boolean uninstallApp(@NonNull String packageName) {
         if (!isAppInstalled(packageName)) {

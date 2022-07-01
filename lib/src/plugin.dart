@@ -62,6 +62,44 @@ class DeviceApps {
     }
   }
 
+  static Future<List<Application>> getInstalledLauncherApplications({
+    bool includeSystemApps: false,
+    bool includeAppIcons: false,
+    bool onlyAppsWithLaunchIntent: false,
+  }) async {
+    try {
+      final Object apps = await _methodChannel
+          .invokeMethod('getInstalledLauncherApps', <String, bool>{
+        'system_apps': includeSystemApps,
+        'include_app_icons': includeAppIcons,
+        'only_apps_with_launch_intent': onlyAppsWithLaunchIntent
+      });
+
+      if (apps is Iterable) {
+        List<Application> list = <Application>[];
+        for (Object app in apps) {
+          if (app is Map) {
+            try {
+              list.add(Application._(app));
+            } catch (e, trace) {
+              if (e is AssertionError) {
+                print('[DeviceApps] Unable to add the following app: $app');
+              } else {
+                print('[DeviceApps] $e $trace');
+              }
+            }
+          }
+        }
+        return list;
+      } else {
+        return List<Application>.empty();
+      }
+    } catch (err) {
+      print(err);
+      return List<Application>.empty();
+    }
+  }
+
   /// Provide all information for a given app by its [packageName]
   /// [includeAppIcon] will also include the icon for the app.
   /// To get it, you have to cast the object to [ApplicationWithIcon].
@@ -121,6 +159,23 @@ class DeviceApps {
         .invokeMethod<bool>(
           'openApp',
           <String, String>{
+            'package_name': packageName,
+          },
+        )
+        .then((bool? value) => value ?? false)
+        .catchError((dynamic err) => false);
+  }
+
+  static Future<bool> openLauncherApp(int userId, String packageName) {
+    if (packageName.isEmpty) {
+      throw Exception('The package name can not be empty');
+    }
+
+    return _methodChannel
+        .invokeMethod<bool>(
+          'openLauncherApp',
+          <String, dynamic>{
+            'user_id': userId,
             'package_name': packageName,
           },
         )
@@ -219,6 +274,9 @@ class Application extends _BaseApplication {
   /// or disabled (installed, but not visible)
   final bool enabled;
 
+  /// Displayable userHandle of the application
+  final int serialUser;
+
   factory Application._(Map<dynamic, dynamic> map) {
     if (map.length == 0) {
       throw Exception('The map can not be null!');
@@ -240,6 +298,7 @@ class Application extends _BaseApplication {
         installTimeMillis = map['install_time'] as int,
         updateTimeMillis = map['update_time'] as int,
         enabled = map['is_enabled'] as bool,
+        serialUser = map['user_serial'] as int,
         category = _parseCategory(map['category']),
         super._fromMap(map);
 
@@ -277,6 +336,10 @@ class Application extends _BaseApplication {
     return DeviceApps.openApp(packageName);
   }
 
+  Future<bool> openLauncherApp() {
+    return DeviceApps.openLauncherApp(serialUser, packageName);
+  }
+
   // Open the app settings screen
   // Will return [true] is the app is installed and the screen visible
   // Will return [false] otherwise
@@ -304,6 +367,7 @@ class Application extends _BaseApplication {
         'installTimeMillis: $installTimeMillis, '
         'updateTimeMillis: $updateTimeMillis, '
         'category: $category, '
+        'userHanlde: $serialUser,'
         'enabled: $enabled'
         '}';
   }
@@ -323,6 +387,7 @@ class Application extends _BaseApplication {
           installTimeMillis == other.installTimeMillis &&
           updateTimeMillis == other.updateTimeMillis &&
           category == other.category &&
+          serialUser == other.serialUser &&
           enabled == other.enabled;
 
   @override
@@ -337,6 +402,7 @@ class Application extends _BaseApplication {
       installTimeMillis.hashCode ^
       updateTimeMillis.hashCode ^
       category.hashCode ^
+      serialUser.hashCode ^
       enabled.hashCode;
 }
 

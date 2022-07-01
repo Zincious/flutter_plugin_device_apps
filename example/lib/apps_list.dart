@@ -63,7 +63,7 @@ class _AppsListScreenContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Application>>(
-      future: DeviceApps.getInstalledApplications(
+      future: DeviceApps.getInstalledLauncherApplications(
           includeAppIcons: true,
           includeSystemApps: includeSystemApps,
           onlyAppsWithLaunchIntent: onlyAppsWithLaunchIntent),
@@ -88,7 +88,8 @@ class _AppsListScreenContent extends StatelessWidget {
                             : null,
                         onTap: () => onAppClicked(context, app),
                         title: Text('${app.appName} (${app.packageName})'),
-                        subtitle: Text('Version: ${app.versionName}\n'
+                        subtitle: Text('UserHandle: ${app.serialUser}\n'
+                            'Version: ${app.versionName}\n'
                             'System app: ${app.systemApp}\n'
                             'APK file path: ${app.apkFilePath}\n'
                             'Data dir: ${app.dataDir}\n'
@@ -117,7 +118,7 @@ class _AppsListScreenContent extends StatelessWidget {
             actions: <Widget>[
               _AppButtonAction(
                 label: 'Open app',
-                onPressed: () => app.openApp(),
+                onPressed: () => app.openLauncherApp(),
               ),
               _AppButtonAction(
                 label: 'Open app settings',
