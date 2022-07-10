@@ -352,10 +352,7 @@ public class DeviceAppsPlugin implements
     }
 
     private boolean openAppLauncherSettings(@NonNull int userId, @NonNull String packageName) {
-        if (!isAppInstalled(packageName)) {
-            Log.w(LOG_TAG, "Application with package name \"" + packageName + "\" is not installed on this device");
-            return false;
-        }
+      
         Log.e(LOG_TAG, "test2:");
 
         LauncherApps launcherApps = (LauncherApps) context.getSystemService(Context.LAUNCHER_APPS_SERVICE);
