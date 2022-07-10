@@ -199,6 +199,23 @@ class DeviceApps {
         .catchError((dynamic err) => false);
   }
 
+  /// Launch the Settings screen of the app based on its [packageName]
+  /// You will then receive in return if the app was opened
+  /// (will be false if the app is not installed)
+  static Future<bool> openAppLauncherSettings(int userId, String packageName) {
+    if (packageName.isEmpty) {
+      throw Exception('The package name can not be empty');
+    }
+
+    return _methodChannel
+        .invokeMethod<bool>('openAppLauncherSettings', <String, dynamic>{
+          'user_id': userId,
+          'package_name': packageName,
+        })
+        .then((bool? value) => value ?? false)
+        .catchError((dynamic err) => false);
+  }
+
   /// Uninstall an application by giving its [packageName]
   /// Note: It will only open the Android's screen
   static Future<bool> uninstallApp(String packageName) {
@@ -208,6 +225,22 @@ class DeviceApps {
 
     return _methodChannel
         .invokeMethod<bool>('uninstallApp', <String, String>{
+          'package_name': packageName,
+        })
+        .then((bool? value) => value ?? false)
+        .catchError((dynamic err) => false);
+  }
+
+  /// Uninstall an application by giving its [packageName]
+  /// Note: It will only open the Android's screen
+  static Future<bool> uninstallAppLauncher(int userId, String packageName) {
+    if (packageName.isEmpty) {
+      throw Exception('The package name can not be empty');
+    }
+
+    return _methodChannel
+        .invokeMethod<bool>('uninstallAppLauncher', <String, dynamic>{
+          'user_id': userId,
           'package_name': packageName,
         })
         .then((bool? value) => value ?? false)
@@ -347,11 +380,23 @@ class Application extends _BaseApplication {
     return DeviceApps.openAppSettings(packageName);
   }
 
+  // Open the app settings screen
+  // Will return [true] is the app is installed and the screen visible
+  // Will return [false] otherwise
+  Future<bool> openSettingsLauncherScreen() {
+    print('DEVICE_APPS');
+    return DeviceApps.openAppLauncherSettings(serialUser, packageName);
+  }
+
   // Uninstall app
   // Will return [true] is the screen to uninstall the app is visible
   // Will return [false] otherwise
   Future<bool> uninstallApp() {
     return DeviceApps.uninstallApp(packageName);
+  }
+
+  Future<bool> uninstallAppLauncher() {
+    return DeviceApps.uninstallAppLauncher(serialUser, packageName);
   }
 
   @override

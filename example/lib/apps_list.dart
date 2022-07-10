@@ -122,11 +122,11 @@ class _AppsListScreenContent extends StatelessWidget {
               ),
               _AppButtonAction(
                 label: 'Open app settings',
-                onPressed: () => app.openSettingsScreen(),
+                onPressed: () => app.openSettingsLauncherScreen(),
               ),
               _AppButtonAction(
                 label: 'Uninstall app',
-                onPressed: () async => app.uninstallApp(),
+                onPressed: () async => app.uninstallAppLauncher(),
               ),
             ],
           );
